@@ -1,7 +1,7 @@
 import type { Entry } from "@records/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import type { ArtistDetailViewProps } from "@/components/ArtistDetailView";
 import { ApiError, fetchArtist } from "@/lib/api";
@@ -14,6 +14,8 @@ const entryColumns = [
   columns.accessor("address", { header: "Address" }),
   columns.display({ id: "image", header: "Image" }),
 ];
+
+const noEntries: Entry[] = [];
 
 export function useArtist(artistId: string | undefined): ArtistDetailViewProps {
   const navigate = useNavigate();
@@ -29,10 +31,16 @@ export function useArtist(artistId: string | undefined): ArtistDetailViewProps {
     }
   }, [detail.error, navigate]);
 
+  const rows = useMemo(
+    () => (detail.data === undefined ? noEntries : [...detail.data.entries]),
+    [detail.data],
+  );
+
   // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable is the library's API
   const table = useReactTable({
-    data: detail.data === undefined ? [] : [...detail.data.entries],
+    data: rows,
     columns: entryColumns,
+    autoResetPageIndex: false,
     getCoreRowModel: getCoreRowModel(),
   });
 

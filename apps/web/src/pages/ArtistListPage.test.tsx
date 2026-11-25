@@ -2,9 +2,52 @@ import type { Artist, ArtistDetail, Entry } from "@records/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BrowserRouter } from "react-router";
+import { BrowserRouter, useNavigate } from "react-router";
+import type { ArtistListViewProps } from "@/components/ArtistListView";
 import { App } from "@/App";
+
+const artistRenders = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock("@/hooks/useArtists", async () => {
+  const actual = (await vi.importActual("@/hooks/useArtists")) as {
+    useArtists: () => ArtistListViewProps;
+  };
+  return {
+    useArtists: () => {
+      artistRenders.count += 1;
+      return actual.useArtists();
+    },
+  };
+});
+
+function SameRouteProbe() {
+  const navigate = useNavigate();
+  const [ticks, setTicks] = useState(0);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setTicks((value) => value + 1);
+        }}
+      >
+        Rerender
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          void navigate("/");
+        }}
+      >
+        Same route
+      </button>
+      <output>{ticks}</output>
+      <App />
+    </>
+  );
+}
 
 const artist: Artist = {
   id: "A0001",
@@ -91,7 +134,7 @@ describe("artist list navigation", () => {
     expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/artists/A0001");
 
-    await user.click(screen.getByRole("button", { name: "Artists" }));
+    await user.click(screen.getByRole("button", { name: "Back to artists" }));
     await screen.findByRole("heading", { name: "Artists" });
 
     const row = screen.getByRole("row", { name: /A0001/ });
@@ -164,6 +207,35 @@ describe("artist list navigation", () => {
 
     expect(await screen.findByRole("button", { name: "Create entry" })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/artists/A0001");
+  });
+
+  it("does not keep rendering after a same-route navigation", async () => {
+    installFetch();
+    artistRenders.count = 0;
+    const user = userEvent.setup();
+    const client = new QueryClient({
+      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+    });
+    window.history.pushState({}, "", "/");
+    render(
+      <QueryClientProvider client={client}>
+        <BrowserRouter>
+          <SameRouteProbe />
+        </BrowserRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("heading", { name: "Artists" });
+    await user.click(screen.getByRole("button", { name: "Rerender" }));
+    await user.click(screen.getByRole("button", { name: "Same route" }));
+    const settled = artistRenders.count;
+    await new Promise((resolve) => {
+      setTimeout(resolve, 80);
+    });
+
+    expect(artistRenders.count - settled).toBeLessThan(8);
+    expect(screen.getByRole("heading", { name: "Artists" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Artists" })).not.toBeInTheDocument();
   });
 
   it("opens an entry from the artist's entry list", async () => {
