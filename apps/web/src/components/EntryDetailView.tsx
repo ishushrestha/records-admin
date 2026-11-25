@@ -1,5 +1,5 @@
 import type { Entry } from "@records/contracts";
-import { TextLink } from "@/components/TextLink";
+import { BackToArtistButton } from "@/components/BackToArtistButton";
 
 export interface EntryDetailViewProps {
   readonly entry?: Entry;
@@ -12,9 +12,7 @@ export function EntryDetailView(props: EntryDetailViewProps) {
   const entry = props.entry;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <TextLink href={entry === undefined ? "/" : `/artists/${entry.artistId}`} onNavigate={props.onBack}>
-        Back to artist
-      </TextLink>
+      <BackToArtistButton onNavigate={props.onBack} />
       {props.isLoading ? (
         <p className="text-muted-foreground" role="status">
           Loading entry…

@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { TextLink } from "@/components/TextLink";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/api";
 
@@ -15,14 +14,15 @@ export function Shell({ children }: { readonly children: ReactNode }) {
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium tracking-[0.18em] text-primary uppercase">Records</p>
-            <TextLink
-              href="/"
-              onNavigate={() => {
+            <Button
+              onClick={() => {
                 void navigate("/");
               }}
+              type="button"
+              variant="outline"
             >
               Artists
-            </TextLink>
+            </Button>
           </div>
           <Button
             onClick={() => {
