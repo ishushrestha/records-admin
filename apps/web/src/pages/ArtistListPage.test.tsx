@@ -91,7 +91,7 @@ describe("artist list navigation", () => {
     expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/artists/A0001");
 
-    await user.click(screen.getByRole("link", { name: "Artists" }));
+    await user.click(screen.getByRole("button", { name: "Artists" }));
     await screen.findByRole("heading", { name: "Artists" });
 
     const row = screen.getByRole("row", { name: /A0001/ });
@@ -136,6 +136,34 @@ describe("artist list navigation", () => {
 
     expect(await screen.findByRole("heading", { name: "Artists" })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/");
+  });
+
+  it("returns to the artist from Back to artist on the entry page", async () => {
+    installFetch();
+    const user = userEvent.setup();
+    renderApp(`/artists/A0001/entries/${entry.id}`);
+
+    const back = await screen.findByRole("button", { name: "Back to artist" });
+    expect(back).toHaveAttribute("type", "button");
+    await user.click(back);
+
+    expect(await screen.findByRole("button", { name: "Create entry" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Log in" })).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/artists/A0001");
+  });
+
+  it("shows Back to artist when the entry is missing and returns to that artist", async () => {
+    installFetch();
+    const user = userEvent.setup();
+    renderApp("/artists/A0001/entries/00000000-0000-4000-8000-000000000000");
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    const back = screen.getByRole("button", { name: "Back to artist" });
+    expect(back).toHaveAttribute("type", "button");
+    await user.click(back);
+
+    expect(await screen.findByRole("button", { name: "Create entry" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/artists/A0001");
   });
 
   it("opens an entry from the artist's entry list", async () => {

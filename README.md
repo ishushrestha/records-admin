@@ -1,6 +1,6 @@
 # Records admin
 
-Version 0.1.1
+Version 0.1.2
 
 Login-gated admin for artists and their entries. This is a separate system from the intake form: it has its own SQLite database and its own login. An administrator creates an artist, and the system assigns an ID such as `A0001`. That ID is what someone types into the Record ID field on the intake form. Entries store a first name, last name, address, and image for that artist.
 
@@ -81,5 +81,6 @@ Images must be JPEG, PNG, or WebP, at most 5 MB. The server checks the file byte
 
 ## Version history
 
+- 0.1.2 — Back to artist is the same outline button on the entry page, including when the entry is missing. The header Artists control is a button too.
 - 0.1.1 — Back to artists is a button on the artist page, its error state, and create entry. It returns to the list in the app.
 - 0.1.0 — Initial records admin: artist IDs, entries, and login.
