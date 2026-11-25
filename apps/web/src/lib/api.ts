@@ -3,10 +3,14 @@ import {
   artistDetailSchema,
   artistListSchema,
   artistSchema,
+  entryRequestListSchema,
+  entryRequestSchema,
   entrySchema,
   type Artist,
   type ArtistDetail,
   type Entry,
+  type EntryRequest,
+  type EntryRequestListItem,
 } from "@records/contracts";
 
 export class ApiError extends Error {
@@ -107,6 +111,45 @@ export async function createEntry(artistId: string, body: FormData): Promise<Ent
   const parsed = entrySchema.safeParse(await response.json());
   if (!parsed.success) {
     throw new ApiError(response.status, "Could not create the entry.");
+  }
+  return parsed.data;
+}
+
+export async function fetchEntryRequests(): Promise<readonly EntryRequestListItem[]> {
+  const response = await fetch("/api/entry-requests", { credentials: "include" });
+  if (!response.ok) {
+    throw await readError(response, "Could not load entry requests.");
+  }
+  const parsed = entryRequestListSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new ApiError(response.status, "Could not load entry requests.");
+  }
+  return parsed.data.requests;
+}
+
+export async function fetchEntryRequest(id: string): Promise<EntryRequest> {
+  const response = await fetch(`/api/entry-requests/${id}`, { credentials: "include" });
+  if (!response.ok) {
+    throw await readError(response, "Could not load that entry request.");
+  }
+  const parsed = entryRequestSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new ApiError(response.status, "Could not load that entry request.");
+  }
+  return parsed.data;
+}
+
+export async function decideEntryRequest(id: string, action: "verify" | "reject"): Promise<EntryRequest> {
+  const response = await fetch(`/api/entry-requests/${id}/${action}`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw await readError(response, "Could not update that entry request.");
+  }
+  const parsed = entryRequestSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new ApiError(response.status, "Could not update that entry request.");
   }
   return parsed.data;
 }

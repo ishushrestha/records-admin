@@ -129,6 +129,77 @@ export const artistDetailSchema = z.object({
 
 export type ArtistDetail = z.infer<typeof artistDetailSchema>;
 
+export const entryRequestStatuses = ["pending", "approved", "rejected"] as const;
+
+export const entryRequestStatusSchema = z.enum(entryRequestStatuses);
+
+export type EntryRequestStatus = z.infer<typeof entryRequestStatusSchema>;
+
+export const sourceSubmissionIdSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter a source submission ID.")
+  .max(80, "Source submission ID must be 80 characters or fewer.")
+  .refine((value) => !hasDisallowedControl(value, false), "Remove control characters.");
+
+export const llmNotesSchema = z
+  .string()
+  .trim()
+  .max(2000, "Notes must be 2000 characters or fewer.")
+  .refine((value) => !hasDisallowedControl(value, true), "Remove control characters.");
+
+export const workerArtistSchema = z.object({
+  id: artistIdSchema,
+  name: z.string(),
+});
+
+export type WorkerArtist = z.infer<typeof workerArtistSchema>;
+
+export const workerEntryRequestResultSchema = z.object({
+  id: z.uuid(),
+  status: entryRequestStatusSchema,
+});
+
+export type WorkerEntryRequestResult = z.infer<typeof workerEntryRequestResultSchema>;
+
+const nullableTimestampSchema = z.iso.datetime().nullable();
+
+export const entryRequestSchema = z.object({
+  id: z.uuid(),
+  artistId: artistIdSchema,
+  artistName: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  address: z.string(),
+  image: entryImageSchema,
+  sourceSubmissionId: z.string(),
+  llmNotes: z.string().nullable(),
+  status: entryRequestStatusSchema,
+  createdAt: timestampSchema,
+  decidedAt: nullableTimestampSchema,
+  createdEntryId: z.uuid().nullable(),
+});
+
+export type EntryRequest = z.infer<typeof entryRequestSchema>;
+
+export const entryRequestListItemSchema = entryRequestSchema.pick({
+  id: true,
+  artistId: true,
+  artistName: true,
+  firstName: true,
+  lastName: true,
+  status: true,
+  createdAt: true,
+});
+
+export type EntryRequestListItem = z.infer<typeof entryRequestListItemSchema>;
+
+export const entryRequestListSchema = z.object({
+  requests: z.array(entryRequestListItemSchema),
+});
+
+export type EntryRequestList = z.infer<typeof entryRequestListSchema>;
+
 export const apiErrorCodes = [
   "validation_error",
   "not_found",
