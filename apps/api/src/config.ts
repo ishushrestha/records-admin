@@ -13,6 +13,8 @@ export interface AppConfig {
   readonly adminPassword: string | undefined;
   /** HMAC key for the admin session cookie. */
   readonly sessionSecret: string;
+  /** Bearer token for the worker API. Undefined when that API is closed. */
+  readonly workerToken: string | undefined;
 }
 
 function loadEnvFile(): void {
@@ -92,5 +94,6 @@ export function loadConfig(): AppConfig {
     adminUsername: optionalSecret(process.env.ADMIN_USERNAME),
     adminPassword: optionalSecret(process.env.ADMIN_PASSWORD),
     sessionSecret: sessionSecret === undefined || sessionSecret.length === 0 ? randomBytes(32).toString("base64url") : sessionSecret,
+    workerToken: optionalSecret(process.env.WORKER_TOKEN),
   };
 }

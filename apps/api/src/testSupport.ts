@@ -21,6 +21,7 @@ export function testConfig(directory: string): AppConfig {
     adminUsername: USERNAME,
     adminPassword: PASSWORD,
     sessionSecret: "test-session-secret",
+    workerToken: "test-worker-token",
   };
 }
 

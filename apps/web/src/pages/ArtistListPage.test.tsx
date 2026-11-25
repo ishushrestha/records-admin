@@ -88,6 +88,9 @@ function installFetch() {
       if (url.endsWith("/api/artists")) {
         return json({ artists: [artist] });
       }
+      if (url.includes("/api/entry-requests") && !url.includes("/api/entry-requests/")) {
+        return json({ requests: [] });
+      }
       return json({ error: "not_found", message: "missing" }, 404);
     }),
   );
@@ -236,6 +239,59 @@ describe("artist list navigation", () => {
     expect(artistRenders.count - settled).toBeLessThan(8);
     expect(screen.getByRole("heading", { name: "Artists" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Artists" })).not.toBeInTheDocument();
+  });
+
+  it("opens a pending LLM entry request and shows the review buttons", async () => {
+    const request = {
+      id: "6b7c8d9e-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+      artistId: "A0001",
+      artistName: "Ada Lovelace",
+      firstName: "Grace",
+      lastName: "Hopper",
+      address: "1 Navy Way",
+      image: { filename: "portrait.png", mimeType: "image/png", sizeBytes: 68 },
+      sourceSubmissionId: "submission-1",
+      llmNotes: "Matched the record id.",
+      status: "pending",
+      createdAt: "2026-11-25T06:00:00.000Z",
+      decidedAt: null,
+      createdEntryId: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes("/api/admin/session")) {
+          return json({ authenticated: true });
+        }
+        if (url.includes("/api/entry-requests/")) {
+          return json(request);
+        }
+        if (url.includes("/api/entry-requests")) {
+          return json({ requests: [request] });
+        }
+        if (url.endsWith("/api/artists")) {
+          return json({ artists: [artist] });
+        }
+        return json({ error: "not_found", message: "missing" }, 404);
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp("/");
+
+    expect(await screen.findByRole("heading", { name: "Entry requests from LLM" })).toBeInTheDocument();
+    const requestLink = await screen.findByRole("link", { name: "Grace Hopper" });
+    expect(screen.getByLabelText("1 pending")).toHaveTextContent("1");
+    await user.click(requestLink);
+
+    expect(await screen.findByRole("button", { name: "Verified" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    expect(screen.getByText("Matched the record id.")).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`/entry-requests/${request.id}`);
+
+    await user.click(screen.getByRole("button", { name: "Back to artists" }));
+    expect(await screen.findByRole("heading", { name: "Artists" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
   });
 
   it("opens an entry from the artist's entry list", async () => {
