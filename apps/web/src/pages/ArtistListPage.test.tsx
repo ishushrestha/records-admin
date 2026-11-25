@@ -101,6 +101,43 @@ describe("artist list navigation", () => {
     expect(window.location.pathname).toBe("/artists/A0001");
   });
 
+  it("returns to the artists list from Back to artists without leaving the session", async () => {
+    installFetch();
+    const user = userEvent.setup();
+    renderApp("/artists/A0001");
+
+    const back = await screen.findByRole("button", { name: "Back to artists" });
+    expect(back).toHaveAttribute("type", "button");
+    await user.click(back);
+
+    expect(await screen.findByRole("heading", { name: "Artists" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Log in" })).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("shows Back to artists when the artist is missing and returns to the list", async () => {
+    installFetch();
+    const user = userEvent.setup();
+    renderApp("/artists/A9999");
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to artists" }));
+
+    expect(await screen.findByRole("heading", { name: "Artists" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("returns to the artists list from the create-entry page", async () => {
+    installFetch();
+    const user = userEvent.setup();
+    renderApp("/artists/A0001/entries/new");
+
+    await user.click(await screen.findByRole("button", { name: "Back to artists" }));
+
+    expect(await screen.findByRole("heading", { name: "Artists" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+  });
+
   it("opens an entry from the artist's entry list", async () => {
     installFetch();
     const user = userEvent.setup();
