@@ -1,5 +1,5 @@
 import type { SubmitEvent } from "react";
-import { TextLink } from "@/components/TextLink";
+import { BackToArtistsButton } from "@/components/BackToArtistsButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,9 +45,7 @@ function FieldError({ id, message }: { readonly id: string; readonly message: st
 export function CreateEntryView(props: CreateEntryViewProps) {
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <TextLink href={`/artists/${props.artistId}`} onNavigate={props.onBack}>
-        Back to artist
-      </TextLink>
+      <BackToArtistsButton onNavigate={props.onBack} />
       <div className="space-y-2">
         <p className="font-mono text-sm text-muted-foreground">Artist ID {props.artistId}</p>
         <h1 className="text-4xl tracking-tight" id="create-entry-title">

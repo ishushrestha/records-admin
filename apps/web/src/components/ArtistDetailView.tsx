@@ -1,7 +1,7 @@
 import type { Artist, Entry } from "@records/contracts";
 import { flexRender, type Table } from "@tanstack/react-table";
 import type { MouseEvent } from "react";
-import { TextLink } from "@/components/TextLink";
+import { BackToArtistsButton } from "@/components/BackToArtistsButton";
 import { Button } from "@/components/ui/button";
 import { isPlainLeftClick } from "@/lib/click";
 
@@ -21,9 +21,7 @@ export function ArtistDetailView(props: ArtistDetailViewProps) {
 
   return (
     <div className="space-y-8">
-      <TextLink href="/" onNavigate={props.onBack}>
-        Back to artists
-      </TextLink>
+      <BackToArtistsButton onNavigate={props.onBack} />
       {props.isLoading ? (
         <p className="text-muted-foreground" role="status">
           Loading artist…

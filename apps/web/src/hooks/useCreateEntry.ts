@@ -81,11 +81,7 @@ export function useCreateEntry(artistId: string | undefined): Omit<CreateEntryVi
     onAddressChange: setAddress,
     onImageSelected: selectImage,
     onBack: () => {
-      if (artistId === undefined) {
-        void navigate("/");
-        return;
-      }
-      void navigate(`/artists/${artistId}`);
+      void navigate("/");
     },
     onSubmit: (event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault();

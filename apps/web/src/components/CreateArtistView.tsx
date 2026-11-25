@@ -1,5 +1,5 @@
 import type { SubmitEvent } from "react";
-import { TextLink } from "@/components/TextLink";
+import { BackToArtistsButton } from "@/components/BackToArtistsButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,9 +17,7 @@ export interface CreateArtistViewProps {
 export function CreateArtistView(props: CreateArtistViewProps) {
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <TextLink href="/" onNavigate={props.onBack}>
-        Back to artists
-      </TextLink>
+      <BackToArtistsButton onNavigate={props.onBack} />
       <div className="space-y-2">
         <h1 className="text-4xl tracking-tight" id="create-artist-title">
           Create artist
