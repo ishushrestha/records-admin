@@ -12,18 +12,7 @@ export function Shell({ children }: { readonly children: ReactNode }) {
     <div className="min-h-svh">
       <div className="mx-auto max-w-6xl px-6 py-8">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium tracking-[0.18em] text-primary uppercase">Records</p>
-            <Button
-              onClick={() => {
-                void navigate("/");
-              }}
-              type="button"
-              variant="outline"
-            >
-              Artists
-            </Button>
-          </div>
+          <p className="text-sm font-medium tracking-[0.18em] text-primary uppercase">Records</p>
           <Button
             onClick={() => {
               void logout().finally(async () => {
