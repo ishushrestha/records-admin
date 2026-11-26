@@ -20,7 +20,6 @@ const app = HttpRouter.serve(
     adminUsername: "admin",
     adminPassword: "correct-horse",
     sessionSecret: "test-session-secret",
-    workerToken: "test-worker-token",
   }),
   { disableLogger: true },
 ).pipe(Layer.provide(NodeHttpServer.layer(() => server, { host: "127.0.0.1", port: 0 })));

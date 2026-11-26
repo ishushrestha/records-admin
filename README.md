@@ -1,6 +1,6 @@
 # Records admin
 
-Version 0.2.0
+Version 0.3.0
 
 Login-gated admin for artists and their entries. This is a separate system from the intake form: it has its own SQLite database and its own login. An administrator creates an artist, and the system assigns an ID such as `A0001`. That ID is what someone types into the Record ID field on the intake form. Entries store a first name, last name, address, and image for that artist.
 
@@ -57,13 +57,10 @@ Copy `.env.example` to `.env` at the repo root. The API reads that file when it 
 | `ADMIN_USERNAME` | `admin` | Single admin username |
 | `ADMIN_PASSWORD` | `change-me` | Single admin password |
 | `SESSION_SECRET` | random at startup if unset | HMAC key for the admin session cookie |
-| `WORKER_TOKEN` | unset | Bearer token for the worker API. If unset, that API stays closed |
 
 With the defaults, the database file is `apps/api/data/records.db` and images are `apps/api/data/uploads`. Both directories are created on startup and are gitignored.
 
 The username and password are hashed in memory with scrypt when the API starts and compared in constant time. They are not written to the database. A successful login sets an httpOnly session cookie that expires after eight hours. Five failed attempts in fifteen minutes lock login until the window passes. Log out clears the cookie. Every artist and entry route requires that session.
-
-`WORKER_TOKEN` is separate. The worker sends `Authorization: Bearer <token>`, compared with SHA-256 and `timingSafeEqual`. The admin cookie cannot call the worker routes, and the worker token cannot open the admin UI. Leave the token unset until a local worker needs it.
 
 ## HTTP API
 
@@ -76,13 +73,6 @@ The username and password are hashed in memory with scrypt when the API starts a
 - `POST /api/artists/:artistId/entries` — admin only. Multipart fields `firstName`, `lastName`, `address`, and `image`.
 - `GET /api/entries/:entryId` — admin only.
 - `GET /api/entries/:entryId/image` — admin only.
-- `GET /api/entry-requests` — admin only. Pending LLM entry requests, oldest first.
-- `GET /api/entry-requests/:requestId` — admin only.
-- `GET /api/entry-requests/:requestId/image` — admin only.
-- `POST /api/entry-requests/:requestId/verify` — admin only. Creates the entry and marks the request approved.
-- `POST /api/entry-requests/:requestId/reject` — admin only. Marks the request rejected and creates no entry.
-- `GET /api/worker/artists/:artistId` — worker token only. `{ "id", "name" }`, or 404 when the artist is unknown.
-- `POST /api/worker/entry-requests` — worker token only. Multipart `artistId`, `firstName`, `lastName`, `address`, `image`, `sourceSubmissionId`, and optional `llmNotes`. New requests are `pending` (`201`). The same `sourceSubmissionId` returns the existing request (`200`).
 - `GET /api/health` — `{ "ok": true }`.
 
 Artist IDs come from a counter stored in this database. The counter only moves forward, the ID column is the primary key, and removing a row does not make that ID available again.
@@ -91,6 +81,7 @@ Images must be JPEG, PNG, or WebP, at most 5 MB. The server checks the file byte
 
 ## Version history
 
+- 0.3.0 — Remove the LLM worker API, WORKER_TOKEN, and the entry-request review UI.
 - 0.2.0 — Worker entry requests: bearer-token intake, then an admin verifies or rejects each one.
 - 0.1.3 — Remove the redundant header Artists button. Artist tables no longer rebuild their row arrays on every render, which was freezing the page.
 - 0.1.2 — Back to artist is the same outline button on the entry page, including when the entry is missing. The header Artists control is a button too.

@@ -34,29 +34,7 @@ CREATE TABLE IF NOT EXISTS entries (
   `
 CREATE INDEX IF NOT EXISTS entries_artist_created_at
   ON entries (artist_id, created_at DESC)`,
-  `
-CREATE TABLE IF NOT EXISTS entry_requests (
-  id TEXT PRIMARY KEY,
-  artist_id TEXT NOT NULL,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL,
-  address TEXT NOT NULL,
-  image_filename TEXT NOT NULL,
-  image_mime_type TEXT NOT NULL,
-  image_size_bytes INTEGER NOT NULL,
-  image_storage_path TEXT NOT NULL,
-  source_submission_id TEXT NOT NULL UNIQUE,
-  llm_notes TEXT,
-  status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-  created_at TEXT NOT NULL,
-  decided_at TEXT,
-  created_entry_id TEXT,
-  FOREIGN KEY (artist_id) REFERENCES artists (id),
-  FOREIGN KEY (created_entry_id) REFERENCES entries (id)
-)`,
-  `
-CREATE INDEX IF NOT EXISTS entry_requests_status_created_at
-  ON entry_requests (status, created_at ASC)`,
+  `DROP TABLE IF EXISTS entry_requests`,
 ];
 
 export interface StatementResult {
