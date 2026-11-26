@@ -4,7 +4,6 @@ import { ArtistsPage } from "@/pages/ArtistsPage";
 import { CreateArtistPage } from "@/pages/CreateArtistPage";
 import { CreateEntryPage } from "@/pages/CreateEntryPage";
 import { EntryPage } from "@/pages/EntryPage";
-import { EntryRequestPage } from "@/pages/EntryRequestPage";
 import { Guard } from "@/pages/Guard";
 import { LoginPage } from "@/pages/LoginPage";
 
@@ -51,14 +50,6 @@ export function App() {
           </Guard>
         }
         path="/artists/:artistId/entries/:entryId"
-      />
-      <Route
-        element={
-          <Guard>
-            <EntryRequestPage />
-          </Guard>
-        }
-        path="/entry-requests/:requestId"
       />
       <Route element={<Navigate replace to="/" />} path="*" />
     </Routes>

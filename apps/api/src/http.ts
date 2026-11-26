@@ -2,19 +2,15 @@ import { NodeServices } from "@effect/platform-node";
 import {
   ARTIST_ID_PATTERN,
   IMAGE_MAX_BYTES,
-  artistIdSchema,
   createArtistSchema,
   createEntryFieldsSchema,
   fieldErrorsFromZod,
   imageMimeTypeSchema,
-  llmNotesSchema,
-  sourceSubmissionIdSchema,
   type ApiErrorBody,
   type ImageMimeType,
 } from "@records/contracts";
-import { ByteSize, Effect, FileSystem, Layer, Option } from "effect";
+import { ByteSize, Effect, FileSystem, Layer } from "effect";
 import {
-  Headers,
   HttpIncomingMessage,
   HttpRouter,
   HttpServerRequest,
@@ -26,10 +22,8 @@ import { Artists, ArtistsLive } from "./artists.js";
 import type { AppConfig } from "./config.js";
 import { DatabaseLive } from "./db.js";
 import { Entries, EntriesLive } from "./entries.js";
-import { EntryRequests, EntryRequestsLive } from "./entryRequests.js";
 import { StorageError } from "./errors.js";
 import { AppConfigService } from "./services.js";
-import { WorkerAuth, WorkerAuthLive } from "./workerAuth.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -69,26 +63,6 @@ const ensureAdmin = Effect.gen(function* () {
   const auth = yield* AdminAuth;
   return auth.isAuthenticated(request.cookies[ADMIN_COOKIE]);
 });
-
-function headerValue(headers: Headers.Headers, name: string): string | undefined {
-  return Option.match(Headers.get(headers, name), {
-    onNone: () => undefined,
-    onSome: (value) => value,
-  });
-}
-
-const workerAccess = Effect.gen(function* () {
-  const request = yield* HttpServerRequest.HttpServerRequest;
-  const workers = yield* WorkerAuth;
-  return workers.authorize(headerValue(request.headers, "authorization"));
-});
-
-function workerDenied(access: "unconfigured" | "unauthorized") {
-  if (access === "unconfigured") {
-    return json(503, errorBody("unavailable", "The worker API is not configured."));
-  }
-  return json(401, errorBody("unauthorized", "That worker token is not correct."));
-}
 
 function textField(form: Multipart.Persisted, key: string): string {
   const value = form[key];
@@ -173,14 +147,6 @@ function artistId(params: Readonly<Record<string, string | undefined>>): string 
 
 function entryId(params: Readonly<Record<string, string | undefined>>): string | undefined {
   const id = params.entryId;
-  if (id === undefined || !UUID_PATTERN.test(id)) {
-    return undefined;
-  }
-  return id;
-}
-
-function requestId(params: Readonly<Record<string, string | undefined>>): string | undefined {
-  const id = params.requestId;
   if (id === undefined || !UUID_PATTERN.test(id)) {
     return undefined;
   }
@@ -468,212 +434,9 @@ const imageRoute = HttpRouter.add(
   ),
 );
 
-const workerArtistRoute = HttpRouter.add(
-  "GET",
-  "/api/worker/artists/:artistId",
-  recover(
-    Effect.gen(function* () {
-      const access = yield* workerAccess;
-      if (access !== "ok") {
-        return workerDenied(access);
-      }
-      const id = artistId(yield* HttpRouter.params);
-      if (id === undefined) {
-        return notFound("No artist exists with that id.");
-      }
-      const artists = yield* Artists;
-      const artist = yield* artists.get(id);
-      if (artist === undefined) {
-        return notFound("No artist exists with that id.");
-      }
-      return json(200, { id: artist.id, name: artist.name });
-    }),
-  ),
-);
-
-const workerCreateRequestRoute = HttpRouter.add(
-  "POST",
-  "/api/worker/entry-requests",
-  recover(
-    Effect.gen(function* () {
-      const access = yield* workerAccess;
-      if (access !== "ok") {
-        return workerDenied(access);
-      }
-      const request = yield* HttpServerRequest.HttpServerRequest;
-      const form = yield* readMultipart(request);
-      const requests = yield* EntryRequests;
-      const sourceParsed = sourceSubmissionIdSchema.safeParse(textField(form, "sourceSubmissionId"));
-      if (sourceParsed.success) {
-        const existing = yield* requests.findBySource(sourceParsed.data);
-        if (existing !== undefined) {
-          return json(200, { id: existing.id, status: existing.status });
-        }
-      }
-      const parsed = createEntryFieldsSchema.safeParse({
-        firstName: textField(form, "firstName"),
-        lastName: textField(form, "lastName"),
-        address: textField(form, "address"),
-      });
-      const fieldErrors: Record<string, string> = parsed.success ? {} : fieldErrorsFromZod(parsed.error);
-      const artistParsed = artistIdSchema.safeParse(textField(form, "artistId"));
-      if (!artistParsed.success) {
-        fieldErrors.artistId = fieldErrorsFromZod(artistParsed.error).artistId ?? "Artist ID must look like A0001.";
-      }
-      if (!sourceParsed.success) {
-        fieldErrors.sourceSubmissionId = fieldErrorsFromZod(sourceParsed.error).sourceSubmissionId ?? "Enter a source submission ID.";
-      }
-      const notesRaw = textField(form, "llmNotes").trim();
-      let llmNotes: string | null = null;
-      if (notesRaw.length > 0) {
-        const notesParsed = llmNotesSchema.safeParse(notesRaw);
-        if (!notesParsed.success) {
-          fieldErrors.llmNotes = fieldErrorsFromZod(notesParsed.error).llmNotes ?? "Notes must be 2000 characters or fewer.";
-        } else {
-          llmNotes = notesParsed.data;
-        }
-      }
-      const upload = selectUpload(form);
-      const inspected = upload.kind === "file" ? yield* inspectUpload(upload.file) : undefined;
-      if (upload.kind === "missing") {
-        fieldErrors.image = "Choose a JPEG, PNG, or WebP image.";
-      } else if (upload.kind === "multiple") {
-        fieldErrors.image = "Choose a single image.";
-      } else if (inspected !== undefined && !inspected.ok) {
-        fieldErrors.image = inspected.message;
-      }
-      if (
-        !parsed.success ||
-        !artistParsed.success ||
-        !sourceParsed.success ||
-        fieldErrors.llmNotes !== undefined ||
-        upload.kind !== "file" ||
-        inspected === undefined ||
-        !inspected.ok
-      ) {
-        return validation(fieldErrors);
-      }
-      const created = yield* requests.create({
-        artistId: artistParsed.data,
-        firstName: parsed.data.firstName,
-        lastName: parsed.data.lastName,
-        address: parsed.data.address,
-        sourceSubmissionId: sourceParsed.data,
-        llmNotes,
-        image: {
-          originalFilename: safeOriginalName(upload.file.name),
-          mimeType: inspected.mimeType,
-          sizeBytes: inspected.sizeBytes,
-          tempPath: upload.file.path,
-        },
-      });
-      if (created.kind === "unknown_artist") {
-        return notFound("No artist exists with that id.");
-      }
-      if (created.kind === "existing") {
-        return json(200, { id: created.id, status: created.status });
-      }
-      return json(201, { id: created.id, status: created.status });
-    }),
-  ),
-);
-
-const listEntryRequestsRoute = HttpRouter.add(
-  "GET",
-  "/api/entry-requests",
-  recover(
-    Effect.gen(function* () {
-      if (!(yield* ensureAdmin)) {
-        return unauthorized();
-      }
-      const requests = yield* EntryRequests;
-      return json(200, { requests: yield* requests.listPending() });
-    }),
-  ),
-);
-
-const getEntryRequestRoute = HttpRouter.add(
-  "GET",
-  "/api/entry-requests/:requestId",
-  recover(
-    Effect.gen(function* () {
-      if (!(yield* ensureAdmin)) {
-        return unauthorized();
-      }
-      const id = requestId(yield* HttpRouter.params);
-      if (id === undefined) {
-        return notFound("No entry request exists with that id.");
-      }
-      const requests = yield* EntryRequests;
-      const entryRequest = yield* requests.get(id);
-      if (entryRequest === undefined) {
-        return notFound("No entry request exists with that id.");
-      }
-      return json(200, entryRequest);
-    }),
-  ),
-);
-
-const entryRequestImageRoute = HttpRouter.add(
-  "GET",
-  "/api/entry-requests/:requestId/image",
-  recover(
-    Effect.gen(function* () {
-      if (!(yield* ensureAdmin)) {
-        return unauthorized();
-      }
-      const id = requestId(yield* HttpRouter.params);
-      if (id === undefined) {
-        return notFound("No entry request exists with that id.");
-      }
-      const requests = yield* EntryRequests;
-      const image = yield* requests.readImage(id);
-      if (image === undefined) {
-        return notFound("No entry request exists with that id.");
-      }
-      const filename = image.filename.replaceAll('"', "");
-      return HttpServerResponse.raw(image.bytes, {
-        contentType: image.mimeType,
-        headers: {
-          "x-content-type-options": "nosniff",
-          "cache-control": "private, no-store",
-          "content-disposition": `inline; filename="${filename}"`,
-        },
-      });
-    }),
-  ),
-);
-
-function decideRequest(action: "verify" | "reject") {
-  return recover(
-    Effect.gen(function* () {
-      if (!(yield* ensureAdmin)) {
-        return unauthorized();
-      }
-      const id = requestId(yield* HttpRouter.params);
-      if (id === undefined) {
-        return notFound("No entry request exists with that id.");
-      }
-      const requests = yield* EntryRequests;
-      const result = action === "verify" ? yield* requests.verify(id) : yield* requests.reject(id);
-      if (result.kind === "missing") {
-        return notFound("No entry request exists with that id.");
-      }
-      if (result.kind === "conflict") {
-        return json(409, errorBody("conflict", "That request has already been decided."));
-      }
-      return json(200, result.request);
-    }),
-  );
-}
-
-const verifyEntryRequestRoute = HttpRouter.add("POST", "/api/entry-requests/:requestId/verify", decideRequest("verify"));
-
-const rejectEntryRequestRoute = HttpRouter.add("POST", "/api/entry-requests/:requestId/reject", decideRequest("reject"));
-
 export const makeRoutes = (config: AppConfig) => {
   const configLayer = Layer.succeed(AppConfigService, config);
-  const services = Layer.mergeAll(ArtistsLive, EntriesLive, EntryRequestsLive, AdminAuthLive, WorkerAuthLive).pipe(
+  const services = Layer.mergeAll(ArtistsLive, EntriesLive, AdminAuthLive).pipe(
     Layer.provide(DatabaseLive),
     Layer.provide(configLayer),
     Layer.provide(NodeServices.layer),
@@ -690,17 +453,10 @@ export const makeRoutes = (config: AppConfig) => {
     createEntryRoute,
     getEntryRoute,
     imageRoute,
-    workerArtistRoute,
-    workerCreateRequestRoute,
-    listEntryRequestsRoute,
-    getEntryRequestRoute,
-    entryRequestImageRoute,
-    verifyEntryRequestRoute,
-    rejectEntryRequestRoute,
     HttpRouter.cors({
       allowedOrigins: [config.webOrigin],
       allowedMethods: ["GET", "POST"],
-      allowedHeaders: ["authorization", "content-type"],
+      allowedHeaders: ["content-type"],
       maxAge: 600,
     }),
   ).pipe(HttpRouter.provideRequest(services), HttpRouter.provideRequest(NodeServices.layer));
