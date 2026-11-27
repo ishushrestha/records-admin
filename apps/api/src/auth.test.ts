@@ -22,12 +22,33 @@ describe("admin login", () => {
     }
   });
 
+  it("sets Secure on the session cookie only for https requests", async () => {
+    const httpsResponse = await login(app.handler, USERNAME, PASSWORD, {
+      url: "https://records.example.duckdns.org:8443/api/admin/login",
+    });
+    expect(httpsResponse.status).toBe(200);
+    const httpsCookie = httpsResponse.headers.get("set-cookie") ?? "";
+    expect(httpsCookie).toMatch(/HttpOnly/i);
+    expect(httpsCookie).toMatch(/SameSite=Lax/i);
+    expect(httpsCookie).toMatch(/Secure/i);
+
+    const spoofed = await login(app.handler, USERNAME, PASSWORD, {
+      url: "http://records-admin:3002/api/admin/login",
+      headers: { "x-forwarded-proto": "https", "x-forwarded-for": "203.0.113.10" },
+    });
+    expect(spoofed.status).toBe(200);
+    const spoofedCookie = spoofed.headers.get("set-cookie") ?? "";
+    expect(spoofedCookie).toMatch(/HttpOnly/i);
+    expect(spoofedCookie).not.toMatch(/Secure/i);
+  });
+
   it("accepts the configured account and sets an httpOnly session cookie", async () => {
     const response = await login(app.handler);
     expect(response.status).toBe(200);
     const setCookie = response.headers.get("set-cookie") ?? "";
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Lax/i);
+    expect(setCookie).not.toMatch(/Secure/i);
     expect(setCookie).not.toContain(PASSWORD);
     const session = await app.handler(
       new Request("http://localhost/api/admin/session", { headers: { cookie: cookieOf(response) } }),

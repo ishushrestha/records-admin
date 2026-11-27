@@ -9,5 +9,6 @@ data/
 *.db-journal
 *.db-wal
 *.db-shm
+*.pem
 .DS_Store
 vite.config.ts.timestamp-*
