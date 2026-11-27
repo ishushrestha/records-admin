@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { NodeServices } from "@effect/platform-node";
 import {
   ARTIST_ID_PATTERN,
@@ -12,11 +14,13 @@ import {
 import { ByteSize, Effect, FileSystem, Layer } from "effect";
 import {
   HttpIncomingMessage,
+  HttpMiddleware,
   HttpRouter,
   HttpServerRequest,
   HttpServerResponse,
   Multipart,
 } from "effect/http";
+import { IpNetwork } from "effect/net";
 import { ADMIN_COOKIE, AdminAuth, AdminAuthLive } from "./auth.js";
 import { Artists, ArtistsLive } from "./artists.js";
 import type { AppConfig } from "./config.js";
@@ -205,6 +209,75 @@ const recover = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       }),
     ),
   );
+
+function resolvePublicFile(webRoot: string, pathname: string): string | undefined {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return undefined;
+  }
+  if (decoded.includes("\0")) {
+    return undefined;
+  }
+  const relativeRequest = decoded.replace(/^\/+/, "");
+  const candidate = resolve(webRoot, relativeRequest);
+  const fromRoot = relative(webRoot, candidate);
+  if (fromRoot.startsWith("..") || fromRoot.startsWith(sep) || isAbsolute(fromRoot)) {
+    return undefined;
+  }
+  if (!existsSync(candidate)) {
+    return undefined;
+  }
+  return statSync(candidate).isFile() ? candidate : undefined;
+}
+
+function contentTypeOf(filePath: string): string {
+  switch (extname(filePath).toLowerCase()) {
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".ico":
+      return "image/x-icon";
+    case ".js":
+    case ".mjs":
+      return "text/javascript; charset=utf-8";
+    case ".json":
+    case ".map":
+      return "application/json; charset=utf-8";
+    case ".png":
+      return "image/png";
+    case ".svg":
+      return "image/svg+xml";
+    case ".woff":
+      return "font/woff";
+    case ".woff2":
+      return "font/woff2";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+const serveWeb = (webRoot: string) =>
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+    if (pathname.startsWith("/api")) {
+      return notFound("Not found.");
+    }
+    const filePath = resolvePublicFile(webRoot, pathname);
+    if (filePath !== undefined) {
+      return HttpServerResponse.raw(readFileSync(filePath), { contentType: contentTypeOf(filePath) });
+    }
+    const index = join(webRoot, "index.html");
+    if (extname(pathname) !== "" || !existsSync(index)) {
+      return notFound("Not found.");
+    }
+    return HttpServerResponse.raw(readFileSync(index), { contentType: "text/html; charset=utf-8" });
+  });
+
+const LOOPBACK_PROXIES = [IpNetwork.fromStringUnsafe("127.0.0.0/8"), IpNetwork.fromStringUnsafe("::1/128")];
 
 const healthRoute = HttpRouter.add("GET", "/api/health", json(200, { ok: true }));
 
@@ -442,7 +515,7 @@ export const makeRoutes = (config: AppConfig) => {
     Layer.provide(NodeServices.layer),
   );
 
-  return Layer.mergeAll(
+  const routes = Layer.mergeAll(
     healthRoute,
     loginRoute,
     logoutRoute,
@@ -454,10 +527,20 @@ export const makeRoutes = (config: AppConfig) => {
     getEntryRoute,
     imageRoute,
     HttpRouter.cors({
-      allowedOrigins: [config.webOrigin],
+      allowedOrigins: [...config.allowedOrigins],
       allowedMethods: ["GET", "POST"],
       allowedHeaders: ["content-type"],
+      credentials: true,
       maxAge: 600,
     }),
-  ).pipe(HttpRouter.provideRequest(services), HttpRouter.provideRequest(NodeServices.layer));
+  );
+  const withWeb =
+    config.webRoot === undefined ? routes : Layer.mergeAll(routes, HttpRouter.add("GET", "*", recover(serveWeb(config.webRoot))));
+  const withProxy = config.trustProxy
+    ? Layer.mergeAll(
+        withWeb,
+        HttpRouter.middleware(HttpMiddleware.xForwardedHeaders({ trustedProxies: LOOPBACK_PROXIES }), { global: true }),
+      )
+    : withWeb;
+  return withProxy.pipe(HttpRouter.provideRequest(services), HttpRouter.provideRequest(NodeServices.layer));
 };

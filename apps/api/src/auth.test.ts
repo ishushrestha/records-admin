@@ -22,12 +22,29 @@ describe("admin login", () => {
     }
   });
 
+  it("sets Secure on the session cookie in production", async () => {
+    const secureDirectory = tempRecordsDir("records-auth-secure-");
+    const secure = createApp(secureDirectory, { secureCookies: true });
+    try {
+      const response = await login(secure.handler);
+      expect(response.status).toBe(200);
+      const setCookie = response.headers.get("set-cookie") ?? "";
+      expect(setCookie).toMatch(/HttpOnly/i);
+      expect(setCookie).toMatch(/SameSite=Lax/i);
+      expect(setCookie).toMatch(/Secure/i);
+    } finally {
+      await secure.dispose();
+      rmSync(secureDirectory, { recursive: true, force: true });
+    }
+  });
+
   it("accepts the configured account and sets an httpOnly session cookie", async () => {
     const response = await login(app.handler);
     expect(response.status).toBe(200);
     const setCookie = response.headers.get("set-cookie") ?? "";
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Lax/i);
+    expect(setCookie).not.toMatch(/Secure/i);
     expect(setCookie).not.toContain(PASSWORD);
     const session = await app.handler(
       new Request("http://localhost/api/admin/session", { headers: { cookie: cookieOf(response) } }),

@@ -60,8 +60,12 @@ function readExpiry(sessionSecret: string, token: string): number | undefined {
   }
 }
 
-function cookie(token: string, maxAge: number): string {
-  return `${ADMIN_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+function cookie(token: string, maxAge: number, secure: boolean): string {
+  const parts = [`${ADMIN_COOKIE}=${token}`, "HttpOnly", "SameSite=Lax", "Path=/", `Max-Age=${maxAge}`];
+  if (secure) {
+    parts.push("Secure");
+  }
+  return parts.join("; ");
 }
 
 function credentialLengthOk(value: string): boolean {
@@ -105,10 +109,10 @@ export const AdminAuthLive = Layer.effect(
           }
           failures = 0;
           const token = sign(config.sessionSecret, now + SESSION_MAX_AGE_SECONDS * 1000);
-          const success: LoginResult = { ok: true, setCookie: cookie(token, SESSION_MAX_AGE_SECONDS) };
+          const success: LoginResult = { ok: true, setCookie: cookie(token, SESSION_MAX_AGE_SECONDS, config.secureCookies) };
           return success;
         }),
-      logoutCookie: () => cookie("", 0),
+      logoutCookie: () => cookie("", 0, config.secureCookies),
       isAuthenticated: (token) => {
         if (token === undefined || token.length === 0) {
           return false;

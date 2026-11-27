@@ -1,6 +1,6 @@
 {
   "name": "records-admin",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.4",
@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "pnpm -r --sequential test",
     "build": "pnpm -r --sequential build",
+    "start": "pnpm --filter @records/api start",
     "check-version": "node scripts/check-version.mjs"
   },
   "pnpm": {

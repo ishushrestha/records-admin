@@ -13,13 +13,17 @@ const directory = mkdtempSync(join(tmpdir(), "records-node-server-"));
 const server = createServer();
 const app = HttpRouter.serve(
   makeRoutes({
+    host: "127.0.0.1",
     port: 0,
     databaseUrl: `file:${join(directory, "records.db")}`,
     uploadDir: join(directory, "uploads"),
-    webOrigin: "http://localhost:5174",
+    allowedOrigins: ["http://localhost:5174"],
     adminUsername: "admin",
     adminPassword: "correct-horse",
     sessionSecret: "test-session-secret",
+    secureCookies: false,
+    trustProxy: false,
+    webRoot: undefined,
   }),
   { disableLogger: true },
 ).pipe(Layer.provide(NodeHttpServer.layer(() => server, { host: "127.0.0.1", port: 0 })));
@@ -42,6 +46,7 @@ beforeAll(async () => {
   if (address === null || typeof address === "string") {
     throw new Error("The test server did not bind a TCP port.");
   }
+  expect(address.address).toBe("127.0.0.1");
   port = address.port;
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {

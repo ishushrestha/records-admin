@@ -14,13 +14,17 @@ export const PASSWORD = "correct-horse";
 
 export function testConfig(directory: string): AppConfig {
   return {
+    host: "127.0.0.1",
     port: 0,
     databaseUrl: `file:${join(directory, "records.db")}`,
     uploadDir: join(directory, "uploads"),
-    webOrigin: "http://localhost:5174",
+    allowedOrigins: ["http://localhost:5174"],
     adminUsername: USERNAME,
     adminPassword: PASSWORD,
     sessionSecret: "test-session-secret",
+    secureCookies: false,
+    trustProxy: false,
+    webRoot: undefined,
   };
 }
 
