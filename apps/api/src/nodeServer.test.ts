@@ -22,7 +22,7 @@ const app = HttpRouter.serve(
     adminPassword: "correct-horse",
     sessionSecret: "test-session-secret",
     secureCookies: false,
-    trustProxy: false,
+    trustedProxyCidrs: [],
     webRoot: undefined,
   }),
   { disableLogger: true },

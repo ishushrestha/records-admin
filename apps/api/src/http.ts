@@ -277,8 +277,6 @@ const serveWeb = (webRoot: string) =>
     return HttpServerResponse.raw(readFileSync(index), { contentType: "text/html; charset=utf-8" });
   });
 
-const LOOPBACK_PROXIES = [IpNetwork.fromStringUnsafe("127.0.0.0/8"), IpNetwork.fromStringUnsafe("::1/128")];
-
 const healthRoute = HttpRouter.add("GET", "/api/health", json(200, { ok: true }));
 
 const loginRoute = HttpRouter.add(
@@ -536,11 +534,17 @@ export const makeRoutes = (config: AppConfig) => {
   );
   const withWeb =
     config.webRoot === undefined ? routes : Layer.mergeAll(routes, HttpRouter.add("GET", "*", recover(serveWeb(config.webRoot))));
-  const withProxy = config.trustProxy
-    ? Layer.mergeAll(
-        withWeb,
-        HttpRouter.middleware(HttpMiddleware.xForwardedHeaders({ trustedProxies: LOOPBACK_PROXIES }), { global: true }),
-      )
-    : withWeb;
+  const withProxy =
+    config.trustedProxyCidrs.length > 0
+      ? Layer.mergeAll(
+          withWeb,
+          HttpRouter.middleware(
+            HttpMiddleware.xForwardedHeaders({
+              trustedProxies: config.trustedProxyCidrs.map((cidr) => IpNetwork.fromStringUnsafe(cidr)),
+            }),
+            { global: true },
+          ),
+        )
+      : withWeb;
   return withProxy.pipe(HttpRouter.provideRequest(services), HttpRouter.provideRequest(NodeServices.layer));
 };

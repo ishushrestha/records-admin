@@ -7,6 +7,7 @@ export const DOCUMENTED_ADMIN_PASSWORD = "change-me";
 export const MIN_PRODUCTION_PASSWORD_LENGTH = 12;
 export const DEFAULT_WEB_ORIGIN = "http://localhost:5174";
 export const DEFAULT_HOST = "127.0.0.1";
+export const DEFAULT_TRUST_PROXY = "127.0.0.0/8,::1/128";
 
 export interface AppConfig {
   readonly host: string;
@@ -23,8 +24,8 @@ export interface AppConfig {
   readonly sessionSecret: string;
   /** Set the session cookie Secure flag (production / HTTPS). */
   readonly secureCookies: boolean;
-  /** Apply X-Forwarded-* headers from loopback proxies such as Caddy. */
-  readonly trustProxy: boolean;
+  /** CIDRs trusted for X-Forwarded-* (empty disables the middleware). */
+  readonly trustedProxyCidrs: readonly string[];
   /** Directory of the Vite web build. Undefined when the API does not serve the UI. */
   readonly webRoot: string | undefined;
 }
@@ -94,6 +95,20 @@ export function parseOrigins(raw: string | undefined, fallback: string): readonl
   const source = raw?.trim() ? raw : fallback;
   const origins = source.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
   return origins.length > 0 ? origins : [fallback];
+}
+
+export function parseTrustProxy(raw: string | undefined): readonly string[] {
+  const source = raw?.trim() ? raw : DEFAULT_TRUST_PROXY;
+  const cidrs = source.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+  if (cidrs.length === 0) {
+    return DEFAULT_TRUST_PROXY.split(",");
+  }
+  for (const cidr of cidrs) {
+    if (!/^[0-9a-fA-F:.]+\/\d{1,3}$/u.test(cidr)) {
+      throw new Error(`Invalid TRUST_PROXY CIDR: ${cidr}`);
+    }
+  }
+  return cidrs;
 }
 
 export function productionStartupError(input: {
@@ -169,7 +184,10 @@ export function loadConfig(): AppConfig {
     adminPassword,
     sessionSecret: sessionSecret === undefined || sessionSecret.length === 0 ? randomBytes(32).toString("base64url") : sessionSecret,
     secureCookies: production,
-    trustProxy: production,
+    trustedProxyCidrs:
+      production || (process.env.TRUST_PROXY !== undefined && process.env.TRUST_PROXY.trim().length > 0)
+        ? parseTrustProxy(process.env.TRUST_PROXY)
+        : [],
     webRoot: resolveWebRoot(process.env.WEB_ROOT, baseDir, production),
   };
 }

@@ -47,7 +47,7 @@ pnpm start
 pnpm check-version
 ```
 
-Production on a VPS is `pnpm build` then `pnpm start`. That builds the web app and serves both the web UI and the API from one Node process on `HOST`:`PORT` (default `127.0.0.1:3002`).
+`pnpm build` then `pnpm start` builds the web app and serves both the web UI and the API from one Node process on `HOST`:`PORT` (default `127.0.0.1:3002`). On the Azure VM that process runs inside Docker; see **Docker / Azure VM** below.
 
 ## Environment
 
@@ -55,18 +55,19 @@ Copy `.env.example` to `.env` at the repo root. The API reads that file when it 
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `HOST` | `127.0.0.1` | Address the API (and Vite) bind. Loopback so only this machine, or Caddy on it, can connect |
+| `HOST` | `127.0.0.1` | Address the API (and Vite) bind. Local default is loopback. Compose sets `0.0.0.0` inside the container |
 | `PORT` | `3002` | API port |
-| `DATABASE_URL` | `file:./data/records.db` | libsql/Turso-compatible SQLite URL for this app only |
-| `UPLOAD_DIR` | `./data/uploads` | Directory for stored images |
+| `DATABASE_URL` | `file:./data/records.db` | libsql/Turso-compatible SQLite URL for this app only. Docker: `file:/data/records.db` |
+| `UPLOAD_DIR` | `./data/uploads` | Directory for stored images. Docker: `/data/uploads` |
 | `WEB_ORIGIN` | `http://localhost:5174` | Fallback browser origin if `ALLOWED_ORIGINS` is unset |
-| `ALLOWED_ORIGINS` | `WEB_ORIGIN` | Comma-separated browser origins allowed to call the API (CORS). Use your `https://` domain in production |
+| `ALLOWED_ORIGINS` | `WEB_ORIGIN` | Comma-separated browser origins allowed to call the API (CORS). Include the port when Caddy serves `https://<domain>:8443` |
+| `TRUST_PROXY` | loopback in production | Comma-separated CIDRs trusted for `X-Forwarded-*`. Compose should set the Docker private ranges |
 | `ADMIN_USERNAME` | `admin` | Single admin username. Production refuses this documented default and an empty value |
 | `ADMIN_PASSWORD` | `change-me` | Single admin password. Production refuses this documented default, an empty value, and anything shorter than 12 characters |
 | `SESSION_SECRET` | random at startup if unset | HMAC key for the admin session cookie |
-| `NODE_ENV` | unset | Set to `production` on the VPS. That enables the credential check, `Secure` cookies, and trusted proxy headers |
+| `NODE_ENV` | unset | Set to `production` in Docker. That enables the credential check, `Secure` cookies, and trusted proxy headers |
 
-With the defaults, the database file is `apps/api/data/records.db` and images are `apps/api/data/uploads`. Both directories are created on startup and are gitignored.
+With the local defaults, the database file is `apps/api/data/records.db` and images are `apps/api/data/uploads`. Both directories are created on startup and are gitignored. In Docker, compose mounts a volume at `/data`: SQLite is `/data/records.db` and uploads are `/data/uploads`.
 
 The username and password are hashed in memory with scrypt when the API starts and compared in constant time. They are not written to the database. A successful login sets an httpOnly `SameSite=Lax` session cookie that expires after eight hours. In production the cookie is also `Secure`. Five failed attempts in fifteen minutes lock login until the window passes. Log out clears the cookie. Every artist and entry route requires that session.
 
@@ -87,162 +88,38 @@ Artist IDs come from a counter stored in this database. The counter only moves f
 
 Images must be JPEG, PNG, or WebP, at most 5 MB. The server checks the file bytes, not only the browser-supplied type.
 
-## Run on a VPS (Ubuntu)
+## Docker / Azure VM
 
-This is the records-admin app only. DuckDNS, `ufw`, and the shared Caddyfile with `basic_auth` live in the intake-form README under **Run on a VPS (Ubuntu)**. Put this site block in that same Caddyfile, using your records hostname:
+Compose, the Caddyfile, and the deploy steps live in the intake-form repo, in `deploy/` and the README section **Deploy on the Azure VM (Docker)**. That compose file builds this image from a sibling clone at `../records-admin`. Local `pnpm dev` with this repo's `.env` is unchanged.
 
-```caddy
-records.example.duckdns.org {
-	basic_auth {
-		admin hashed-password-from-caddy-hash-password
-	}
-	reverse_proxy 127.0.0.1:3002
-}
-```
+The image runs `pnpm start`: one Node process serving the SPA and the API on port 3002 with `NODE_ENV=production`. `HOST` still defaults to `127.0.0.1` outside Docker; compose sets `HOST=0.0.0.0` inside the container.
 
-Do the rest of these steps on the VPS, one command at a time. From Windows Command Prompt, open an SSH session first:
+Compose should set:
 
-```cmd
-ssh youruser@your-server-ip
-```
+| Key | Docker value |
+| --- | --- |
+| `NODE_ENV` | `production` |
+| `HOST` | `0.0.0.0` |
+| `PORT` | `3002` |
+| `DATABASE_URL` | `file:/data/records.db` |
+| `UPLOAD_DIR` | `/data/uploads` |
+| `ALLOWED_ORIGINS` / `WEB_ORIGIN` | public origin including the port, e.g. `https://records.example.duckdns.org:8443` |
+| `ADMIN_USERNAME` | not `admin` |
+| `ADMIN_PASSWORD` | at least 12 characters, not `change-me` |
+| `SESSION_SECRET` | long random string |
+| `TRUST_PROXY` | Docker private ranges, e.g. `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128` |
 
-Install Node.js 22 LTS:
+Mount a volume at `/data`. SQLite is `/data/records.db`. Uploads are `/data/uploads`.
 
-```bash
-sudo apt-get update
-```
-
-```bash
-sudo apt-get install -y ca-certificates curl gnupg
-```
+To build this image from this repo:
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+docker build .
 ```
-
-```bash
-sudo apt-get install -y nodejs
-```
-
-Enable pnpm with corepack:
-
-```bash
-sudo corepack enable
-```
-
-```bash
-corepack prepare pnpm@10.33.4 --activate
-```
-
-Clone this repository (use your fork URL if that is what you deploy):
-
-```bash
-git clone https://github.com/ishushrestha/records-admin.git
-```
-
-```bash
-cd records-admin
-```
-
-Install dependencies:
-
-```bash
-pnpm install
-```
-
-Copy the example env file. Do not commit `.env`. Secrets in git can be cloned by anyone with the repo.
-
-```bash
-cp .env.example .env
-```
-
-Generate a password and a session secret:
-
-```bash
-openssl rand -base64 24
-```
-
-```bash
-openssl rand -base64 24
-```
-
-Edit `.env`. Set `NODE_ENV=production`, `HOST=127.0.0.1`, `ADMIN_USERNAME` to a name that is not `admin`, `ADMIN_PASSWORD` to the first generated value, `SESSION_SECRET` to the second, and `ALLOWED_ORIGINS` to your https domain:
-
-```bash
-nano .env
-```
-
-```ini
-HOST=127.0.0.1
-PORT=3002
-NODE_ENV=production
-ALLOWED_ORIGINS=https://records.example.duckdns.org
-ADMIN_USERNAME=your-admin-name
-ADMIN_PASSWORD=
-SESSION_SECRET=
-```
-
-Paste the openssl values. Save and exit (`Ctrl+O`, Enter, `Ctrl+X` in nano).
-
-Build the web app and the API:
-
-```bash
-pnpm build
-```
-
-Create a systemd service so the process restarts after a reboot. Replace `youruser` with your Ubuntu login:
-
-```bash
-which pnpm
-```
-
-```bash
-pwd
-```
-
-```bash
-sudo nano /etc/systemd/system/records-admin.service
-```
-
-```ini
-[Unit]
-Description=records-admin
-After=network.target
-
-[Service]
-Type=simple
-User=youruser
-WorkingDirectory=/home/youruser/records-admin
-Environment=NODE_ENV=production
-EnvironmentFile=/home/youruser/records-admin/.env
-ExecStart=/usr/bin/pnpm start
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-If `which pnpm` printed a different path, put that path in `ExecStart`. If `pwd` was not `/home/youruser/records-admin`, use the path it printed.
-
-Reload systemd and start the service:
-
-```bash
-sudo systemctl daemon-reload
-```
-
-```bash
-sudo systemctl enable --now records-admin
-```
-
-```bash
-sudo systemctl status records-admin
-```
-
-The process should listen on `127.0.0.1:3002` only. Caddy in front of it terminates HTTPS. Open `https://records.example.duckdns.org`, pass Caddy `basic_auth`, then sign in with the username and password from `.env`.
 
 ## Version history
 
-- 0.4.0 — Bind to HOST (default 127.0.0.1), refuse default production credentials, Secure cookies and CORS origins behind Caddy, and serve the web UI from `pnpm start`.
+- 0.4.0 — Bind to HOST (default 127.0.0.1), refuse default production credentials, Secure cookies and CORS origins behind Caddy, serve the web UI from `pnpm start`, and ship a Docker image for the Azure VM compose stack.
 - 0.3.0 — Remove the LLM worker API, WORKER_TOKEN, and the entry-request review UI.
 - 0.2.0 — Worker entry requests: bearer-token intake, then an admin verifies or rejects each one.
 - 0.1.3 — Remove the redundant header Artists button. Artist tables no longer rebuild their row arrays on every render, which was freezing the page.

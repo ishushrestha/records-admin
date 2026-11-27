@@ -23,7 +23,7 @@ export function testConfig(directory: string): AppConfig {
     adminPassword: PASSWORD,
     sessionSecret: "test-session-secret",
     secureCookies: false,
-    trustProxy: false,
+    trustedProxyCidrs: [],
     webRoot: undefined,
   };
 }

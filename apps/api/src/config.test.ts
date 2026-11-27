@@ -2,10 +2,12 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
+  DEFAULT_TRUST_PROXY,
   DOCUMENTED_ADMIN_PASSWORD,
   DOCUMENTED_ADMIN_USERNAME,
   MIN_PRODUCTION_PASSWORD_LENGTH,
   parseOrigins,
+  parseTrustProxy,
   productionStartupError,
   readHost,
 } from "./config.js";
@@ -92,6 +94,22 @@ describe("listen host and CORS origins", () => {
       "https://records.example.duckdns.org",
       "https://admin.example.com",
     ]);
+    expect(parseOrigins("https://records.example.duckdns.org:8443", "http://localhost:5174")).toEqual([
+      "https://records.example.duckdns.org:8443",
+    ]);
+  });
+
+  it("defaults TRUST_PROXY to loopback and accepts Docker private ranges", () => {
+    expect(parseTrustProxy(undefined)).toEqual(DEFAULT_TRUST_PROXY.split(","));
+    expect(parseTrustProxy("")).toEqual(DEFAULT_TRUST_PROXY.split(","));
+    expect(parseTrustProxy("10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128")).toEqual([
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16",
+      "127.0.0.0/8",
+      "::1/128",
+    ]);
+    expect(() => parseTrustProxy("not-a-cidr")).toThrow(/Invalid TRUST_PROXY CIDR/u);
   });
 });
 
