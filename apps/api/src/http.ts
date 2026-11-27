@@ -11,7 +11,7 @@ import {
   type ApiErrorBody,
   type ImageMimeType,
 } from "@records/contracts";
-import { ByteSize, Effect, FileSystem, Layer } from "effect";
+import { ByteSize, Effect, FileSystem, Layer, Option } from "effect";
 import {
   HttpIncomingMessage,
   HttpMiddleware,
@@ -277,6 +277,10 @@ const serveWeb = (webRoot: string) =>
     return HttpServerResponse.raw(readFileSync(index), { contentType: "text/html; charset=utf-8" });
   });
 
+function cookieSecure(request: HttpServerRequest.HttpServerRequest): boolean {
+  return Option.exists(HttpServerRequest.toURL(request), (url) => url.protocol === "https:");
+}
+
 const healthRoute = HttpRouter.add("GET", "/api/health", json(200, { ok: true }));
 
 const loginRoute = HttpRouter.add(
@@ -296,7 +300,7 @@ const loginRoute = HttpRouter.add(
         return validation({ username: "Enter your username.", password: "Enter your password." });
       }
       const auth = yield* AdminAuth;
-      const result = yield* auth.login(username, password);
+      const result = yield* auth.login(username, password, cookieSecure(request));
       if (!result.ok && result.reason === "rate_limited") {
         return json(429, errorBody("rate_limited", "Too many attempts. Wait a few minutes and try again."), {
           "retry-after": "900",
@@ -318,8 +322,9 @@ const logoutRoute = HttpRouter.add(
   "/api/admin/logout",
   recover(
     Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest;
       const auth = yield* AdminAuth;
-      return json(200, { authenticated: false }, { "set-cookie": auth.logoutCookie() });
+      return json(200, { authenticated: false }, { "set-cookie": auth.logoutCookie(cookieSecure(request)) });
     }),
   ),
 );

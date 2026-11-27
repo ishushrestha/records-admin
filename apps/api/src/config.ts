@@ -22,8 +22,6 @@ export interface AppConfig {
   readonly adminPassword: string | undefined;
   /** HMAC key for the admin session cookie. */
   readonly sessionSecret: string;
-  /** Set the session cookie Secure flag (production / HTTPS). */
-  readonly secureCookies: boolean;
   /** CIDRs trusted for X-Forwarded-* (empty disables the middleware). */
   readonly trustedProxyCidrs: readonly string[];
   /** Directory of the Vite web build. Undefined when the API does not serve the UI. */
@@ -183,7 +181,6 @@ export function loadConfig(): AppConfig {
     adminUsername,
     adminPassword,
     sessionSecret: sessionSecret === undefined || sessionSecret.length === 0 ? randomBytes(32).toString("base64url") : sessionSecret,
-    secureCookies: production,
     trustedProxyCidrs:
       production || (process.env.TRUST_PROXY !== undefined && process.env.TRUST_PROXY.trim().length > 0)
         ? parseTrustProxy(process.env.TRUST_PROXY)

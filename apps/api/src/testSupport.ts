@@ -22,7 +22,6 @@ export function testConfig(directory: string): AppConfig {
     adminUsername: USERNAME,
     adminPassword: PASSWORD,
     sessionSecret: "test-session-secret",
-    secureCookies: false,
     trustedProxyCidrs: [],
     webRoot: undefined,
   };
@@ -40,11 +39,12 @@ export async function login(
   handler: (request: Request) => Promise<Response>,
   username = USERNAME,
   password = PASSWORD,
+  init: { readonly url?: string; readonly headers?: Record<string, string> } = {},
 ): Promise<Response> {
   return handler(
-    new Request("http://localhost/api/admin/login", {
+    new Request(init.url ?? "http://localhost/api/admin/login", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...init.headers },
       body: JSON.stringify({ username, password }),
     }),
   );

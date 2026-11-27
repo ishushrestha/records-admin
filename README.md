@@ -65,11 +65,11 @@ Copy `.env.example` to `.env` at the repo root. The API reads that file when it 
 | `ADMIN_USERNAME` | `admin` | Single admin username. Production refuses this documented default and an empty value |
 | `ADMIN_PASSWORD` | `change-me` | Single admin password. Production refuses this documented default, an empty value, and anything shorter than 12 characters |
 | `SESSION_SECRET` | random at startup if unset | HMAC key for the admin session cookie |
-| `NODE_ENV` | unset | Set to `production` in Docker. That enables the credential check, `Secure` cookies, and trusted proxy headers |
+| `NODE_ENV` | unset | Set to `production` in Docker. That enables the credential check and trusted proxy headers. Session cookies are `Secure` only for HTTPS requests |
 
 With the local defaults, the database file is `apps/api/data/records.db` and images are `apps/api/data/uploads`. Both directories are created on startup and are gitignored. In Docker, compose mounts a volume at `/data`: SQLite is `/data/records.db` and uploads are `/data/uploads`.
 
-The username and password are hashed in memory with scrypt when the API starts and compared in constant time. They are not written to the database. A successful login sets an httpOnly `SameSite=Lax` session cookie that expires after eight hours. In production the cookie is also `Secure`. Five failed attempts in fifteen minutes lock login until the window passes. Log out clears the cookie. Every artist and entry route requires that session.
+The username and password are hashed in memory with scrypt when the API starts and compared in constant time. They are not written to the database. A successful login sets an httpOnly `SameSite=Lax` session cookie that expires after eight hours. The cookie is also `Secure` when the request is HTTPS, including `X-Forwarded-Proto: https` from a trusted proxy. Plain HTTP (the Docker worker at `http://records-admin:3002`) gets a non-Secure cookie. Five failed attempts in fifteen minutes lock login until the window passes. Log out clears the cookie. Every artist and entry route requires that session.
 
 ## HTTP API
 

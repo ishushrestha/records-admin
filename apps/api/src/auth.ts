@@ -15,8 +15,8 @@ export type LoginResult =
 export class AdminAuth extends Context.Service<
   AdminAuth,
   {
-    readonly login: (username: string, password: string) => Effect.Effect<LoginResult>;
-    readonly logoutCookie: () => string;
+    readonly login: (username: string, password: string, secure: boolean) => Effect.Effect<LoginResult>;
+    readonly logoutCookie: (secure: boolean) => string;
     readonly isAuthenticated: (token: string | undefined) => boolean;
   }
 >()("records/AdminAuth") {}
@@ -84,7 +84,7 @@ export const AdminAuthLive = Layer.effect(
     let windowStartedAt = Date.now();
 
     return {
-      login: (username, password) =>
+      login: (username, password, secure) =>
         Effect.gen(function* () {
           const now = Date.now();
           if (now - windowStartedAt > LOGIN_WINDOW_MS) {
@@ -109,10 +109,10 @@ export const AdminAuthLive = Layer.effect(
           }
           failures = 0;
           const token = sign(config.sessionSecret, now + SESSION_MAX_AGE_SECONDS * 1000);
-          const success: LoginResult = { ok: true, setCookie: cookie(token, SESSION_MAX_AGE_SECONDS, config.secureCookies) };
+          const success: LoginResult = { ok: true, setCookie: cookie(token, SESSION_MAX_AGE_SECONDS, secure) };
           return success;
         }),
-      logoutCookie: () => cookie("", 0, config.secureCookies),
+      logoutCookie: (secure) => cookie("", 0, secure),
       isAuthenticated: (token) => {
         if (token === undefined || token.length === 0) {
           return false;
